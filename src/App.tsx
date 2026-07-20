@@ -45,17 +45,86 @@ interface FloatingScore {
 }
 
 export default function App() {
-  // --- Integrated App States ---
-  const [passbook, setPassbook] = useState<PassbookEntry[]>([]);
-  const [quests, setQuests] = useState<QuestTask[]>([]);
-  const [gauge, setGauge] = useState(0);
-  const [tickets, setTickets] = useState(0);
+  // --- Integrated App States (Initialized using Lazy Initializers to prevent race conditions on reload) ---
+  const [passbook, setPassbook] = useState<PassbookEntry[]>(() => {
+    const savedPassbookStr = localStorage.getItem('studyPassbookV5');
+    if (savedPassbookStr && savedPassbookStr !== '[]') {
+      try {
+        const legacyList = JSON.parse(savedPassbookStr);
+        return legacyList.map((item: any, idx: number) => ({
+          id: item.id || `legacy-pb-${idx}-${Date.now()}`,
+          date: item.date || new Date().toISOString().split('T')[0],
+          task: item.task || '',
+          category: item.rawTask === '__withdraw__' ? 'ご褒美' : (item.rawTask || 'その他'),
+          pt: item.pt || 0
+        }));
+      } catch (e) {
+        console.error("Error loading legacy studyPassbookV5:", e);
+      }
+    }
+    return INITIAL_PASSBOOK_DATA;
+  });
+
+  const [quests, setQuests] = useState<QuestTask[]>(() => {
+    const savedQuestsStr = localStorage.getItem('bq_tasks');
+    if (savedQuestsStr) {
+      try {
+        const list = JSON.parse(savedQuestsStr);
+        return list.map((item: any, idx: number) => ({
+          id: item.id || `quest-${idx}-${Date.now()}`,
+          name: item.name || '',
+          val: item.val || 10,
+          done: !!item.done
+        }));
+      } catch (e) {
+        console.error("Error loading bq_tasks:", e);
+      }
+    }
+    return [];
+  });
+
+  const [gauge, setGauge] = useState<number>(() => {
+    const savedGauge = localStorage.getItem('bq_gauge');
+    return savedGauge ? (parseInt(savedGauge) || 0) : 0;
+  });
+
+  const [tickets, setTickets] = useState<number>(() => {
+    const savedTickets = localStorage.getItem('bq_tickets');
+    return savedTickets ? (parseInt(savedTickets) || 0) : 0;
+  });
+
   const [roulette, setRoulette] = useState<{
     a: RouletteState;
     b: RouletteState;
     c: RouletteState;
-  }>(DEFAULT_ROULETTE);
-  const [templates, setTemplates] = useState<{ [name: string]: { name: string; val: number }[] }>({});
+  }>(() => {
+    const savedRouletteStr = localStorage.getItem('roulette_v3');
+    if (savedRouletteStr) {
+      try {
+        const raw = JSON.parse(savedRouletteStr);
+        const r: typeof DEFAULT_ROULETTE = { ...DEFAULT_ROULETTE };
+        if (raw.a) r.a = raw.a;
+        if (raw.b) r.b = raw.b;
+        if (raw.c) r.c = raw.c;
+        return r;
+      } catch (e) {
+        console.error("Error loading roulette_v3:", e);
+      }
+    }
+    return DEFAULT_ROULETTE;
+  });
+
+  const [templates, setTemplates] = useState<{ [name: string]: { name: string; val: number }[] }>(() => {
+    const savedTemplatesStr = localStorage.getItem('bq_templates');
+    if (savedTemplatesStr) {
+      try {
+        return JSON.parse(savedTemplatesStr);
+      } catch (e) {
+        console.error("Error loading bq_templates:", e);
+      }
+    }
+    return {};
+  });
 
   // --- UI Layout state ---
   const [activeTab, setActiveTab] = useState<'quest' | 'roulette' | 'passbook'>('roulette');
@@ -69,84 +138,6 @@ export default function App() {
   const [triggerConfetti, setTriggerConfetti] = useState(false);
   const [showFlash, setShowFlash] = useState(false);
   const [stampText, setStampText] = useState<string | null>(null);
-
-  // --- Load Initial Data (and migrate from previous apps if available) ---
-  useEffect(() => {
-    // 1. Study Passbook (legacy key: 'studyPassbookV5')
-    const savedPassbookStr = localStorage.getItem('studyPassbookV5');
-    let loadedPassbook: PassbookEntry[] = [];
-    if (savedPassbookStr && savedPassbookStr !== '[]') {
-      try {
-        const legacyList = JSON.parse(savedPassbookStr);
-        // Map legacy format to our format
-        loadedPassbook = legacyList.map((item: any, idx: number) => ({
-          id: item.id || `legacy-pb-${idx}-${Date.now()}`,
-          date: item.date || new Date().toISOString().split('T')[0],
-          task: item.task || '',
-          category: item.rawTask === '__withdraw__' ? 'ご褒美' : (item.rawTask || 'その他'),
-          pt: item.pt || 0
-        }));
-      } catch (e) {
-        console.error("Error loading legacy studyPassbookV5:", e);
-      }
-    } else if (!savedPassbookStr) {
-      loadedPassbook = INITIAL_PASSBOOK_DATA;
-    }
-    setPassbook(loadedPassbook);
-
-    // 2. Beaker Quest (legacy keys: 'bq_tasks', 'bq_tickets', 'bq_gauge', 'bq_templates')
-    const savedQuestsStr = localStorage.getItem('bq_tasks');
-    let loadedQuests: QuestTask[] = [];
-    if (savedQuestsStr) {
-      try {
-        const list = JSON.parse(savedQuestsStr);
-        loadedQuests = list.map((item: any, idx: number) => ({
-          id: item.id || `quest-${idx}-${Date.now()}`,
-          name: item.name || '',
-          val: item.val || 10,
-          done: !!item.done
-        }));
-      } catch (e) {
-        console.error("Error loading bq_tasks:", e);
-      }
-    }
-    setQuests(loadedQuests);
-
-    const savedTickets = localStorage.getItem('bq_tickets');
-    if (savedTickets) {
-      setTickets(parseInt(savedTickets) || 0);
-    }
-
-    const savedGauge = localStorage.getItem('bq_gauge');
-    if (savedGauge) {
-      setGauge(parseInt(savedGauge) || 0);
-    }
-
-    const savedTemplatesStr = localStorage.getItem('bq_templates');
-    if (savedTemplatesStr) {
-      try {
-        setTemplates(JSON.parse(savedTemplatesStr));
-      } catch (e) {
-        console.error("Error loading bq_templates:", e);
-      }
-    }
-
-    // 3. Roulette (legacy key: 'roulette_v3')
-    const savedRouletteStr = localStorage.getItem('roulette_v3');
-    if (savedRouletteStr) {
-      try {
-        const raw = JSON.parse(savedRouletteStr);
-        // Safely map raw roulette modes
-        const r: typeof roulette = { ...DEFAULT_ROULETTE };
-        if (raw.a) r.a = raw.a;
-        if (raw.b) r.b = raw.b;
-        if (raw.c) r.c = raw.c;
-        setRoulette(r);
-      } catch (e) {
-        console.error("Error loading roulette_v3:", e);
-      }
-    }
-  }, []);
 
   // --- Save data whenever states change ---
   useEffect(() => {
