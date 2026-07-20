@@ -1,0 +1,6 @@
+{
+  "name": "StudyQuest",
+  "description": "ビーカークエスト、パックルーレット、学習通帳を美しく融合させた、楽しく続けられる学習継続ダッシュボード",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
