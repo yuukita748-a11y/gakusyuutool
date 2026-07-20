@@ -127,7 +127,13 @@ export default function App() {
   });
 
   // --- UI Layout state ---
-  const [activeTab, setActiveTab] = useState<'quest' | 'roulette' | 'passbook'>('roulette');
+  const [activeTab, setActiveTab] = useState<'quest' | 'roulette' | 'passbook'>(() => {
+    const saved = localStorage.getItem('studyquest_active_tab');
+    if (saved === 'quest' || saved === 'roulette' || saved === 'passbook') {
+      return saved;
+    }
+    return 'roulette';
+  });
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [floatingScores, setFloatingScores] = useState<FloatingScore[]>([]);
   const [isTicketUseModalOpen, setIsTicketUseModalOpen] = useState(false);
@@ -175,6 +181,10 @@ export default function App() {
   useEffect(() => {
     localStorage.setItem('roulette_v3', JSON.stringify(roulette));
   }, [roulette]);
+
+  useEffect(() => {
+    localStorage.setItem('studyquest_active_tab', activeTab);
+  }, [activeTab]);
 
   // --- Core functions & Unified synchronization ---
 
@@ -365,7 +375,7 @@ export default function App() {
     const newEntry: PassbookEntry = {
       id: `roulette-auto-${mode}-${taskName.replace(/\s+/g, '')}-${Date.now()}`,
       date: dateStr,
-      task: `🎯 [ルーレット] ${taskName} (${bonusVal}pt)`,
+      task: taskName,
       category: 'ルーレット',
       pt: bonusVal
     };
